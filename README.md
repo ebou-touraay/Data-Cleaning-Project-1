@@ -1,2 +1,259 @@
 # Data-Cleaning-Project-1
 MySQL Data Cleaning - World Layoff Dataset
+
+-- DATA CLEANING
+-- Data cleaning in SQL involves identifying and fixing inaccuracies in a dataset to ensure it is tidy and ready for analysis. 
+-- This process includes handling missing values, removing duplicates, correcting data types, and more.
+
+SELECT *
+FROM layoffs;
+
+-- DATA CLEANING 
+-- STEPS:
+
+-- 1. Remove Duplicates
+-- 2. Standardized the Data
+-- 3. Null values or blank values
+-- 4. Remove Any columns  NB sometimes removing coulumns can be catastrophe there we create a staging table to avoid the original data.
+
+CREATE TABLE layoffs_staging
+LIKE layoffs;
+
+
+SELECT *
+FROM layoffs_staging;
+
+INSERT layoffs_staging
+SELECT *
+FROM layoffs;
+
+-- 1. Finding Duplicates
+
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company, industry, total_laid_off, percentage_laid_off, `date`) AS row_num
+FROM layoffs_staging;
+
+WITH duplicates_cte AS
+(
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company, location,
+industry, total_laid_off, percentage_laid_off, `date`, stage,
+country, funds_raised_millions 
+) AS row_num
+FROM layoffs_staging
+)
+SELECT *
+FROM duplicates_cte
+WHERE row_num > 1;
+
+
+SELECT *
+FROM layoffs_staging
+WHERE company = 'casper';
+
+
+
+WITH duplicates_cte AS
+(
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company, location,
+industry, total_laid_off, percentage_laid_off, `date`, stage,
+country, funds_raised_millions 
+) AS row_num
+FROM layoffs_staging
+)
+DELETE
+FROM duplicates_cte
+WHERE row_num > 1;
+
+
+CREATE TABLE `layoffs_staging2` (
+  `company` text,
+  `location` text,
+  `industry` text,
+  `total_laid_off` int DEFAULT NULL,
+  `percentage_laid_off` text,
+  `date` text,
+  `stage` text,
+  `country` text,
+  `funds_raised_millions` int DEFAULT NULL,
+  `row_num` INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+SELECT *
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+INSERT INTO layoffs_staging2
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company, location,
+industry, total_laid_off, percentage_laid_off, `date`, stage,
+country, funds_raised_millions 
+) AS row_num
+FROM layoffs_staging;
+
+
+DELETE
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+SELECT * 
+FROM layoffs_staging2;
+
+
+-- 2. Standardizing Data
+-- Is finding issues in your data and fixing it
+
+SELECT DISTINCT company, TRIM(company)
+FROM layoffs_staging2;
+
+
+UPDATE layoffs_staging2
+SET company = TRIM(company);
+
+
+
+SELECT  DISTINCT industry
+FROM layoffs_staging2
+ORDER BY 1;
+
+SELECT *
+FROM layoffs_staging2
+WHERE industry LIKE 'Crypto%';
+
+UPDATE layoffs_staging2
+SET industry = 'Crypto' 
+WHERE industry LIKE 'Crypto%';
+
+-- Fixing blanks and nulls
+
+SELECT DISTINCT country
+FROM layoffs_staging2
+WHERE country LIKE 'United States%';
+
+
+UPDATE layoffs_staging2
+SET country = 'United States' 
+WHERE country LIKE 'United States%';
+
+
+SELECT DISTINCT country, TRIM(TRAILING '.' FROM country)
+FROM layoffs_staging2
+ORDER BY 1;
+
+
+-- Change date format Text to Date format
+
+SELECT *
+FROM layoffs_staging2;
+
+SELECT `date`,
+STR_TO_DATE(`date`, '%m/%d/%Y' )
+FROM layoffs_staging2;
+
+UPDATE layoffs_staging2
+SET `date` = STR_TO_DATE(`date`, '%m/%d/%Y' );
+
+-- Verify/check updated date format
+
+SELECT `date`
+FROM layoffs_staging2;
+
+-- How to change a column data type format
+ALTER TABLE layoffs_staging2
+MODIFY COLUMN `date` DATE;
+
+-- STEP 3: WORKING WITH NULL AND BLANKS
+
+SELECT *
+FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+
+SELECT *
+FROM layoffs_staging2
+WHERE industry IS NULL
+OR industry = '' ;
+
+
+SELECT *
+FROM layoffs_staging2
+WHERE company ='Airbnb';
+
+SELECT *
+FROM layoffs_staging2
+WHERE company ='Bally\'s Interactive';
+
+
+SELECT *
+FROM layoffs_staging2
+WHERE company  LIKE 'Bally%';
+
+-- Airbnb one row indutry is travel and the other is blank. so have to update the blank one to travel to maintain uniformity.
+
+SELECT *
+FROM layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+	ON t1.company = t2.company
+    AND t1.location = t2.location
+WHERE (T1.industry IS NULL OR t1.industry = '')
+AND t2.industry IS NOT NULL;
+
+
+SELECT t1.industry, t2.industry
+FROM layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+	ON t1.company = t2.company
+    AND t1.location = t2.location
+WHERE (T1.industry IS NULL OR t1.industry = '')
+AND t2.industry IS NOT NULL;
+
+
+UPDATE layoffs_staging2
+SET industry = NULL  
+WHERE industry  = '';
+
+
+UPDATE layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+	ON t1.company = t2.company
+SET t1.industry = t2.industry
+WHERE t1.industry IS NULL 
+AND t2.industry IS NOT NULL;
+
+
+SELECT *
+FROM layoffs_staging2;
+
+-- STEP 4. REMOVING COLUMNS 
+
+SELECT *
+FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+-- Delete records that have both total_laid_off and percentage_laid_off that are BLANK
+DELETE 
+FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
+
+
+SELECT *
+FROM layoffs_staging2;
+
+-- Delete the column row_num that was added to check duplicates
+ALTER TABLE layoffs_staging2
+DROP COLUMN row_num
+
+
+
+
+
+
